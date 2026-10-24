@@ -8,6 +8,32 @@ Public agent skills repo: `FloyyMP/claude-skills`, published via skills.sh. **Th
 - Line endings are LF (`.gitattributes`).
 - Skills are public: no personal names, home-folder paths or emails in them. Say "the user". The `FloyyMP` GitHub handle stays only where it is the install path.
 - Project-specific skills stay in their own project repo (`<project>/.claude/skills/`); everything general-purpose lives here.
+- Installing copies a skill folder verbatim into `~/.claude/skills/`, so a skill must run in place from there: no repo-relative paths, no build step, no install of its own.
+
+## Verification
+
+There is no build and no test suite. Python is stdlib-only — no `requirements.txt`, no `pyproject.toml`, no dependency to install; that is what keeps every script runnable in place out of `~/.claude/skills/`. Run Python with `-I` so a stray `json.py`/`re.py` in a skill folder can't shadow the stdlib.
+
+- `python3 -I skills/find-tooling/scripts/search.py --selftest` — the only real test; covers the pure matching/scoring logic. Must print `selftest ok`.
+- `<script> -h` / `--help` — the `.py` scripts print argparse help, `run-gates.sh` and `prove-clean.sh` print their own header comment. Run it after touching a header, flag or usage line. The exit code is **not** uniform: argparse and `run-gates.sh -h` exit 0, `prove-clean.sh -h` exits 2 (same as its usage error). Bare `bash run-gates.sh` with no `--repo` exits 3, its nothing-runnable code.
+- `.ps1` twins: compare by reading against the `.sh`/`.py` (or a portable pwsh from `/tmp`, see Layout). Nothing here exercises them.
+
+Each skill's `## Steps` is the checklist for edits to that skill; the scripts are only part of it.
+
+## Script contract
+
+The scripts are a skill's API, so their CLI is a public interface that installed copies already call:
+
+- Exit codes are documented per script and branched on by the skills — `prove-clean` 0 clean / 1 open / 2 usage, `run-gates` 3 nothing-runnable, `session-facts` 1 transcript missing. Never renumber them to "tidy up".
+- Scripts documented as read-only stay read-only; `prove-clean` and `memory-index-check` run at close-out, before commits land.
+- `session-facts.py` reads the on-disk transcript as the source of truth and treats the conversation as a supplement. Don't make anything else depend on recall.
+- `CLAUDE_CONFIG_DIR` overrides `~/.claude` wherever a config path is resolved (`search.py` marketplace cache, the `find-tooling` skill dir). New code resolving a config path should honour it too.
+
+## Skill frontmatter
+
+- `disable-model-invocation: true` — manual-only. Any skill with side effects (commit, push, install, delete, zip) gets it, and its description opens with "Manual-only".
+- `allowed-tools:` — narrow it when the skill must not write; `automation-advisor` is read-only until the user picks IDs.
+- Descriptions load every session and are pure trigger text: say what it does *and* when to use it, and name the sibling that covers the adjacent case (`automation-advisor` ↔ `find-tooling`, `review-session` vs `complete-session`).
 
 ## Versioning
 Each `SKILL.md` carries a `version:` field (semver). Bump it on every edit: patch for fixes/wording, minor for new behaviour, major for breaking changes.
